@@ -1,0 +1,47 @@
+.page {
+  max-width: 720px;
+  margin: 2rem auto;
+  font-family: system-ui, sans-serif;
+}
+section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #ddd;
+}
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+.match {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.score {
+  font-weight: bold;
+}
+.breakdown {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+.gate-fail {
+  color: #b00020;
+}
+.gate-pass {
+  color: #2a7a2a;
+}
+.error {
+  color: #b00020;
+}
+.ok {
+  color: #2a7a2a;
+}
