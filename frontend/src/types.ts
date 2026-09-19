@@ -24,4 +24,6 @@ export interface MatchResult {
   score: number | null;
   components: Record<string, number>;
   gates: Gates;
+  is_new?: boolean;
+  dismissed?: boolean;
 }

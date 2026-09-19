@@ -1,15 +1,15 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.llm.embeddings import embed
-from app.models import AtsAccount, Company, Job, JobRequirements as JobRequirementsRow, Match, Profile
+from app.models import Company, Job, JobRequirements as JobRequirementsRow, Match, Profile, User
+from app.schemas.job import JobRequirements
 from app.schemas.profile import MasterProfile
-from app.services import score_explainer
-from app.services import scorer
-from app.services.adapters import greenhouse
-from app.services.jd_extractor import get_or_create as get_or_create_job_requirements
+from app.services import discovery, gap_analysis, score_explainer
 
 router = APIRouter()
 
@@ -37,74 +37,98 @@ def compute_matches(req: MatchRequest, db: Session = Depends(get_db)):
     results = []
     for company_id in req.company_ids:
         company = db.get(Company, company_id)
-        ats_account = (
-            db.query(AtsAccount).filter_by(company_id=company_id, ats_kind="greenhouse").first()
-        )
-        if not company or not ats_account:
+        if not company:
             continue
-
         try:
-            raw_jobs = greenhouse.list_jobs(ats_account.board_token)
+            jobs = discovery.discover_jobs(db, company)
         except Exception as e:
             results.append({"company": company.name, "error": str(e)})
             continue
 
-        for raw_job in raw_jobs:
-            job_row = (
-                db.query(Job).filter_by(company_id=company_id, ats_job_id=raw_job.ats_job_id).first()
-            )
-            if not job_row:
-                job_row = Job(
-                    company_id=company_id,
-                    ats_job_id=raw_job.ats_job_id,
-                    title=raw_job.title,
-                    location=raw_job.location,
-                    jd_hash=raw_job.jd_hash,
-                    raw=raw_job.raw,
-                )
-                db.add(job_row)
-                db.commit()
-
-            requirements = get_or_create_job_requirements(db, raw_job, user_id=profile_row.user_id)
-
-            job_requirements_row = db.get(JobRequirementsRow, raw_job.jd_hash)
-            job_vec = job_requirements_row.embedding if job_requirements_row else None
-            # ponytail: one combined title+domain embedding per side, reused for both
-            # seniority_fit's title term and domain_fit — a second, title-only embedding
-            # would sharpen seniority_fit but isn't worth a second Voyage call per job yet.
-            embeddings_pair = (profile_vec, list(job_vec)) if job_vec is not None else None
-
-            outcome = scorer.score(
-                profile,
-                requirements,
-                title_embeddings=embeddings_pair,
-                domain_embeddings=embeddings_pair,
-            )
-
-            match_row = db.query(Match).filter_by(user_id=profile_row.user_id, job_id=job_row.id).first()
-            if not match_row:
-                match_row = Match(user_id=profile_row.user_id, job_id=job_row.id)
-                db.add(match_row)
-            match_row.score = outcome["score"]
-            match_row.components_json = outcome["components"]
-            match_row.gates_json = outcome["gates"]
-            db.commit()
-
-            results.append(
-                {
-                    "match_id": match_row.id,
-                    "job_id": job_row.id,
-                    "company": company.name,
-                    "title": raw_job.title,
-                    "location": raw_job.location,
-                    "score": outcome["score"],
-                    "components": outcome["components"],
-                    "gates": outcome["gates"],
-                }
-            )
+        for r in discovery.score_jobs_for_profile(
+            db, jobs, user_id=profile_row.user_id, profile=profile, profile_vec=profile_vec
+        ):
+            results.append({**r, "company": company.name})
 
     results.sort(key=lambda r: (r.get("score") is None, -(r.get("score") or 0)))
     return results
+
+
+@router.get("/matches/inbox")
+def match_inbox(email: str, min_score: float | None = None, include_dismissed: bool = False, db: Session = Depends(get_db)):
+    user = db.query(User).filter_by(email=email).first()
+    if not user:
+        return []
+    query = db.query(Match).filter_by(user_id=user.id)
+    if not include_dismissed:
+        query = query.filter_by(dismissed=False)
+    if min_score is not None:
+        query = query.filter(Match.score >= min_score)
+
+    matches = query.all()
+    results = []
+    for m in matches:
+        job_row = db.get(Job, m.job_id)
+        company = db.get(Company, job_row.company_id)
+        results.append(
+            {
+                "match_id": m.id,
+                "job_id": m.job_id,
+                "company": company.name,
+                "title": job_row.title,
+                "location": job_row.location,
+                "score": m.score,
+                "components": m.components_json,
+                "gates": m.gates_json,
+                "is_new": m.seen_at is None,
+                "dismissed": m.dismissed,
+            }
+        )
+        if m.seen_at is None:
+            m.seen_at = datetime.now(timezone.utc)
+    db.commit()
+
+    results.sort(key=lambda r: (r.get("score") is None, -(r.get("score") or 0)))
+    return results
+
+
+@router.post("/matches/{match_id}/dismiss")
+def dismiss_match(match_id: str, db: Session = Depends(get_db)):
+    match_row = db.get(Match, match_id)
+    if not match_row:
+        raise HTTPException(404, "match not found")
+    match_row.dismissed = True
+    db.commit()
+    return {"dismissed": match_id}
+
+
+@router.get("/matches/{match_id}/prep-plan")
+def prep_plan(match_id: str, db: Session = Depends(get_db)):
+    match_row = db.get(Match, match_id)
+    if not match_row:
+        raise HTTPException(404, "match not found")
+    if match_row.prep_plan_json:
+        return match_row.prep_plan_json
+
+    job_row = db.get(Job, match_row.job_id)
+    req_row = db.get(JobRequirementsRow, job_row.jd_hash)
+    profile_row = (
+        db.query(Profile).filter_by(user_id=match_row.user_id).order_by(Profile.created_at.desc()).first()
+    )
+    if not req_row or not profile_row:
+        raise HTTPException(400, "missing job requirements or profile for this match")
+
+    plan = gap_analysis.generate(
+        db,
+        profile=MasterProfile.model_validate(profile_row.master_json),
+        job=JobRequirements.model_validate(req_row.parsed_json),
+        components=match_row.components_json,
+        gates=match_row.gates_json,
+        user_id=match_row.user_id,
+    )
+    match_row.prep_plan_json = plan.model_dump()
+    db.commit()
+    return match_row.prep_plan_json
 
 
 @router.get("/matches/{match_id}/explain")

@@ -45,3 +45,11 @@ section {
 .ok {
   color: #2a7a2a;
 }
+.badge {
+  background: #2a7a2a;
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+}

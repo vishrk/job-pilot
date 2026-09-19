@@ -9,6 +9,7 @@ export default function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [matches, setMatches] = useState<MatchResult[]>([]);
+  const [inbox, setInbox] = useState<MatchResult[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +59,44 @@ export default function App() {
     }
   }
 
+  async function saveAsHunt() {
+    if (!email || selected.size === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/hunts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, company_ids: [...selected], schedule: "daily" }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadInbox() {
+    if (!email) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/matches/inbox?email=${encodeURIComponent(email)}`);
+      if (!res.ok) throw new Error(await res.text());
+      setInbox(await res.json());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function dismiss(matchId: string) {
+    await fetch(`/api/matches/${matchId}/dismiss`, { method: "POST" });
+    setInbox((prev) => prev.filter((m) => m.match_id !== matchId));
+  }
+
   function toggleCompany(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -101,6 +140,9 @@ export default function App() {
         <button disabled={!profileId || selected.size === 0 || busy} onClick={findMatches}>
           Find matches
         </button>
+        <button disabled={!profileId || selected.size === 0 || busy} onClick={saveAsHunt}>
+          Save as Hunt (runs daily)
+        </button>
       </section>
 
       {error && <p className="error">{error}</p>}
@@ -130,6 +172,23 @@ export default function App() {
                 ))}
               </div>
             )}
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h2>4. Hunt inbox</h2>
+        <button disabled={!email || busy} onClick={loadInbox}>
+          Refresh inbox
+        </button>
+        {inbox.map((m) => (
+          <div key={m.match_id} className="match">
+            <div className="match-header">
+              {m.is_new && <span className="badge">NEW</span>} <strong>{m.title}</strong> @ {m.company} —{" "}
+              {m.location ?? "n/a"}
+              <span className="score">{m.score === null ? "EXCLUDED" : `${m.score}/100`}</span>
+              <button onClick={() => dismiss(m.match_id)}>Dismiss</button>
+            </div>
           </div>
         ))}
       </section>

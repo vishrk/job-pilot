@@ -70,15 +70,22 @@ class AtsAccount(Base):
 
 
 class Job(Base):
-    """Global: parsed/discovered exactly once, shared across all users."""
+    """Global: one row per logical job, discovered exactly once, shared across all
+    users. Deduped on (company_id, normalized_title, location) — the same role
+    cross-posted to two ATS boards collapses to a single row (§2.5)."""
 
     __tablename__ = "jobs"
-    __table_args__ = (UniqueConstraint("company_id", "ats_job_id"),)
+    __table_args__ = (
+        UniqueConstraint("company_id", "ats_kind", "ats_job_id"),
+        UniqueConstraint("company_id", "normalized_title", "location", name="uq_jobs_dedup_key"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"))
+    ats_kind: Mapped[str] = mapped_column(String)
     ats_job_id: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
+    normalized_title: Mapped[str] = mapped_column(String)
     location: Mapped[str | None] = mapped_column(String, nullable=True)
     jd_hash: Mapped[str] = mapped_column(String, index=True)
     raw: Mapped[dict] = mapped_column(JSONB)
@@ -106,6 +113,24 @@ class Match(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)  # null if gated out
     components_json: Mapped[dict] = mapped_column(JSONB)
     gates_json: Mapped[dict] = mapped_column(JSONB)
+    prep_plan_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    dismissed: Mapped[bool] = mapped_column(default=False)
+    seen_at: Mapped[datetime | None] = mapped_column(nullable=True)  # null = new, unseen in the inbox
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class Hunt(Base):
+    __tablename__ = "hunts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    roles: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    locations: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    comp_floor: Mapped[float | None] = mapped_column(Float, nullable=True)
+    company_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    schedule: Mapped[str] = mapped_column(String, default="daily")  # "hourly" | "daily"
+    next_run_at: Mapped[datetime] = mapped_column(default=_now)
+    last_run_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
 

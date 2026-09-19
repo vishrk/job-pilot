@@ -20,7 +20,7 @@ def load_companies(db):
         company = Company(name=c["name"], domain=c["domain"])
         db.add(company)
         db.flush()
-        db.add(AtsAccount(company_id=company.id, ats_kind="greenhouse", board_token=c["board_token"]))
+        db.add(AtsAccount(company_id=company.id, ats_kind=c.get("ats_kind", "greenhouse"), board_token=c["board_token"]))
     db.commit()
     print(f"Loaded {len(companies)} companies")
 

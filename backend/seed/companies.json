@@ -51,5 +51,14 @@
   {"name": "Twitch", "domain": "twitch.tv", "board_token": "twitch"},
   {"name": "Epic Games", "domain": "epicgames.com", "board_token": "epicgames"},
   {"name": "Roblox", "domain": "roblox.com", "board_token": "roblox"},
-  {"name": "ZoomInfo", "domain": "zoominfo.com", "board_token": "zoominfo"}
+  {"name": "ZoomInfo", "domain": "zoominfo.com", "board_token": "zoominfo"},
+  {"name": "Palantir", "domain": "palantir.com", "board_token": "palantir", "ats_kind": "lever"},
+  {"name": "Spotify", "domain": "spotify.com", "board_token": "spotify", "ats_kind": "lever"},
+  {"name": "Outreach", "domain": "outreach.io", "board_token": "outreach", "ats_kind": "lever"},
+  {"name": "Ramp", "domain": "ramp.com", "board_token": "ramp", "ats_kind": "ashby"},
+  {"name": "Notion", "domain": "notion.so", "board_token": "notion", "ats_kind": "ashby"},
+  {"name": "OpenAI", "domain": "openai.com", "board_token": "openai", "ats_kind": "ashby"},
+  {"name": "Linear", "domain": "linear.app", "board_token": "linear", "ats_kind": "ashby"},
+  {"name": "Vanta", "domain": "vanta.com", "board_token": "vanta", "ats_kind": "ashby"},
+  {"name": "Watershed", "domain": "watershed.com", "board_token": "watershed", "ats_kind": "ashby"}
 ]
