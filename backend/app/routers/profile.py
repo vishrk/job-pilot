@@ -44,3 +44,23 @@ async def upload_profile(file: UploadFile, email: str = Form(...), db: Session =
     db.commit()
 
     return {"profile_id": profile_row.id, "profile": master_profile.model_dump()}
+
+
+@router.get("/profile/vault")
+def get_profile_vault(email: str, db: Session = Depends(get_db)):
+    """Fetched by the extension's background service worker into memory only —
+    never written to chrome.storage (§7 Phase 3, §6 security).
+
+    # ponytail/SECURITY: email-as-identity has no real authentication behind it,
+    # same placeholder as the rest of the app (§3 defers real auth to Clerk/Supabase,
+    # not yet wired). Do NOT ship the extension against this endpoint without a real
+    # bearer token check first — right now anyone who knows an email can pull that
+    # user's profile vault.
+    """
+    user = db.query(User).filter_by(email=email).first()
+    if not user:
+        raise HTTPException(404, "user not found")
+    profile_row = db.query(Profile).filter_by(user_id=user.id).order_by(Profile.created_at.desc()).first()
+    if not profile_row:
+        raise HTTPException(404, "no profile for this user")
+    return {"profile_id": profile_row.id, "profile": profile_row.master_json}

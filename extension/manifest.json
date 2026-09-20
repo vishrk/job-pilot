@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "JobPilot Autofill",
+  "version": "0.1.0",
+  "description": "Fills job application forms from your JobPilot profile. You always click Submit yourself.",
+  "action": {
+    "default_popup": "popup/index.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://boards.greenhouse.io/*",
+        "https://job-boards.greenhouse.io/*",
+        "https://jobs.lever.co/*"
+      ],
+      "js": ["content/index.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": [
+    "https://boards.greenhouse.io/*",
+    "https://job-boards.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "http://localhost:8000/*"
+  ]
+}

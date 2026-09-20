@@ -154,6 +154,39 @@ class Document(Base):
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
 
+class FormMap(Base):
+    """Global: a field mapping for one employer's application form, keyed by a
+    fingerprint of its field structure. Resolved once by the form-mapper agent,
+    then reused by every subsequent user who hits that same form (§7 Phase 3)."""
+
+    __tablename__ = "form_maps"
+    __table_args__ = (UniqueConstraint("domain", "form_fingerprint"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    domain: Mapped[str] = mapped_column(String)
+    form_fingerprint: Mapped[str] = mapped_column(String)
+    mapping_json: Mapped[dict] = mapped_column(JSONB)  # {selector: profile_field_path}
+    health: Mapped[str] = mapped_column(String, default="untested")  # "untested" | "ok" | "broken"
+    last_ok_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
+class Answer(Base):
+    """Global answer library, per user: a screening question ('years of Python?',
+    'work authorization?') keyed by a fingerprint of its normalized text, reused
+    across every employer that asks a matching question."""
+
+    __tablename__ = "answers"
+    __table_args__ = (UniqueConstraint("user_id", "question_fingerprint"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    question_fingerprint: Mapped[str] = mapped_column(String)
+    question_text: Mapped[str] = mapped_column(String)
+    answer: Mapped[str] = mapped_column(String)
+    last_used: Mapped[datetime] = mapped_column(default=_now)
+
+
 class SkillAlias(Base):
     __tablename__ = "skill_aliases"
 

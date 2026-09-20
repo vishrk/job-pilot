@@ -1,4 +1,4 @@
-# JobPilot — Phase 0 + Phase 1 + Phase 2
+# JobPilot — Phase 0 + Phase 1 + Phase 2 + Phase 3
 
 ## Setup
 
@@ -17,6 +17,10 @@ python -m app.worker                      # separate process: polls & runs due H
 cd ../frontend
 npm install
 npm run dev                               # http://localhost:5173
+
+cd ../extension
+npm install
+npm run build                             # -> dist/, load unpacked at chrome://extensions
 ```
 
 ## Tests
@@ -24,6 +28,9 @@ npm run dev                               # http://localhost:5173
 ```bash
 cd backend
 pytest tests/                             # golden set + unit tests, no DB/API keys needed
+
+cd ../extension
+npm test                                  # node --test, no browser/build step needed
 ```
 
 ## Phase 1 additions
@@ -68,6 +75,41 @@ pytest tests/                             # golden set + unit tests, no DB/API k
 - Frontend: `TailorPanel.tsx` — bullet-level original-vs-tailored diff, checkboxes per bullet,
   rejected-bullet and unsupported-claim boxes, regenerate-with-feedback, approve, then PDF/DOCX
   export links (export only unlocks after approval).
+
+## Phase 3 additions
+
+- `extension/` — Chrome MV3 extension (React popup + content scripts), built with esbuild (no
+  bundler dependency beyond that). `npm run build` produces `dist/`, loadable via "Load unpacked".
+  No `<all_urls>` — `manifest.json` scopes `content_scripts`/`host_permissions` to
+  `boards.greenhouse.io`, `job-boards.greenhouse.io`, `jobs.lever.co`, and the API origin.
+- **The no-submit guarantee is enforced by a test, not just a design intent**: `extension/tests/no-submit.test.ts`
+  statically scans every source file (comments stripped, so the guarantee can't be gamed by a comment
+  containing the banned text) for `.submit()`, `.requestSubmit()`, a click on a submit-typed element, or a
+  dispatched submit event — and separately checks the review panel's only button is "Dismiss". This survives
+  future edits to the fill logic, unlike a unit test of today's behavior.
+- `content/fillPlan.ts` is a pure function (DOM-free) that turns resolved field mappings + the
+  profile into fill actions; `content/domFill.ts` is the thin DOM-facing layer that actually
+  writes values — kept separate so the interesting logic is unit-testable without a browser/jsdom.
+- `content/fieldMaps/{greenhouse,lever}.ts` — deterministic label/name pattern matching for the
+  two ATSes with the cleanest, most consistent DOM. Anything they can't classify falls through to
+  the backend form-mapper agent.
+- `app/services/form_mapper.py` — the one genuine agent loop (§5): a first pass maps every field,
+  a second pass re-asks only about fields the model itself flagged low-confidence, given the
+  already-resolved neighbors as context. Cached by `(domain, form_fingerprint)` in `form_maps`, so
+  the second user on an unknown form costs zero LLM calls. Loop control flow tested with the LLM
+  call stubbed (`tests/test_form_mapper.py`).
+- `content/fingerprint.ts` / `app/services/form_fingerprint.py` — same ordered-hash algorithm in
+  both languages; `extension/src/content/fingerprint.test.ts` asserts they produce a byte-identical
+  hash for the same input, not just "looks right" on each side independently.
+- `app/services/answer_library.py` — the answer library, fingerprinted on normalized question
+  text, reused across employers; falls through to the essay-answerer LLM node on a cache miss.
+- `app/routers/profile.py`'s `GET /profile/vault` — fetched by the background service worker into
+  an in-memory variable only, never `chrome.storage` (see the security flag in that endpoint's
+  docstring: it currently has no real auth behind email-as-identity, same placeholder as the rest
+  of the app — do not point a real build at it before wiring Clerk/Supabase).
+- Review panel (`content/reviewPanel.ts`): shows every filled field plus editable essay-answer
+  drafts, has exactly one button ("Dismiss"), and no code path that acts on the underlying form's
+  submit control.
 
 ## Embedding provider
 
