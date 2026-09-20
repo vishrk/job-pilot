@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import type { Company, MatchResult } from "./types";
+import type { Company, MatchResult, Profile } from "./types";
+import TailorPanel from "./TailorPanel";
 import "./App.css";
 
 export default function App() {
   const [email, setEmail] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [tailoringMatchId, setTailoringMatchId] = useState<string | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [matches, setMatches] = useState<MatchResult[]>([]);
@@ -33,6 +36,7 @@ export default function App() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setProfileId(data.profile_id);
+      setProfile(data.profile);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -170,11 +174,16 @@ export default function App() {
                     {k}: {v.toFixed(2)}
                   </div>
                 ))}
+                {m.score !== null && <button onClick={() => setTailoringMatchId(m.match_id)}>Tailor resume</button>}
               </div>
             )}
           </div>
         ))}
       </section>
+
+      {tailoringMatchId && (
+        <TailorPanel matchId={tailoringMatchId} profile={profile} onClose={() => setTailoringMatchId(null)} />
+      )}
 
       <section>
         <h2>4. Hunt inbox</h2>

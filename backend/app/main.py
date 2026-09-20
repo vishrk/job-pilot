@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import companies, hunts, matches, profile
+from app.routers import companies, documents, hunts, matches, profile
 
 app = FastAPI(title="JobPilot API")
 
@@ -16,6 +16,7 @@ app.include_router(profile.router)
 app.include_router(companies.router)
 app.include_router(matches.router)
 app.include_router(hunts.router)
+app.include_router(documents.router)
 
 
 @app.get("/health")

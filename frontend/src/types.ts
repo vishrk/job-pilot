@@ -27,3 +27,51 @@ export interface MatchResult {
   is_new?: boolean;
   dismissed?: boolean;
 }
+
+export interface ProfileBullet {
+  id: string;
+  experience_id: string | null;
+  text: string;
+  tags: string[];
+}
+
+export interface Profile {
+  bullets: ProfileBullet[];
+  [key: string]: unknown;
+}
+
+export interface TailoredBullet {
+  id: string;
+  source_bullet_id: string;
+  text: string;
+}
+
+export interface TailoredSection {
+  experience_id: string;
+  bullets: TailoredBullet[];
+}
+
+export interface TailoredResumeContent {
+  summary: string;
+  sections: TailoredSection[];
+  skills: { canonical: string }[];
+}
+
+export interface VerifiedClaim {
+  claim: string;
+  supported: boolean;
+  reasoning: string;
+}
+
+export interface DocumentOut {
+  id: string;
+  match_id: string;
+  kind: "resume" | "cover_letter";
+  version: number;
+  content: TailoredResumeContent;
+  provenance_map: Record<string, string>;
+  verify_report: { claims: VerifiedClaim[] } | null;
+  rejected_bullets: { source_bullet_id: string; text: string; reason: string }[];
+  status: "draft" | "approved";
+  approved_bullet_ids: string[] | null;
+}

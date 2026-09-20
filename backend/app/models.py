@@ -134,6 +134,26 @@ class Hunt(Base):
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
 
+class Document(Base):
+    """A generated resume or cover letter for one match. New edits (regenerate,
+    approve) create a new version rather than mutating an old one, so prior
+    drafts stay inspectable."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    match_id: Mapped[str] = mapped_column(ForeignKey("matches.id"))
+    kind: Mapped[str] = mapped_column(String)  # "resume" | "cover_letter"
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    content_json: Mapped[dict] = mapped_column(JSONB)  # structured draft, see schemas/document.py
+    provenance_map: Mapped[dict] = mapped_column(JSONB)  # {output_bullet_id: source_bullet_id}
+    verify_report: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    rejected_bullets: Mapped[list[dict]] = mapped_column(JSONB, default=list)  # dropped for missing source_bullet_id
+    status: Mapped[str] = mapped_column(String, default="draft")  # "draft" | "approved"
+    approved_bullet_ids: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
 class SkillAlias(Base):
     __tablename__ = "skill_aliases"
 

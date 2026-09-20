@@ -6,10 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.llm.embeddings import embed
-from app.models import Company, Job, JobRequirements as JobRequirementsRow, Match, Profile, User
-from app.schemas.job import JobRequirements
+from app.models import Company, Job, Match, Profile, User
 from app.schemas.profile import MasterProfile
-from app.services import discovery, gap_analysis, score_explainer
+from app.services import discovery, gap_analysis, match_context, score_explainer
 
 router = APIRouter()
 
@@ -110,18 +109,15 @@ def prep_plan(match_id: str, db: Session = Depends(get_db)):
     if match_row.prep_plan_json:
         return match_row.prep_plan_json
 
-    job_row = db.get(Job, match_row.job_id)
-    req_row = db.get(JobRequirementsRow, job_row.jd_hash)
-    profile_row = (
-        db.query(Profile).filter_by(user_id=match_row.user_id).order_by(Profile.created_at.desc()).first()
-    )
-    if not req_row or not profile_row:
+    ctx = match_context.load(db, match_id)
+    if not ctx:
         raise HTTPException(400, "missing job requirements or profile for this match")
+    _, profile, job = ctx
 
     plan = gap_analysis.generate(
         db,
-        profile=MasterProfile.model_validate(profile_row.master_json),
-        job=JobRequirements.model_validate(req_row.parsed_json),
+        profile=profile,
+        job=job,
         components=match_row.components_json,
         gates=match_row.gates_json,
         user_id=match_row.user_id,
